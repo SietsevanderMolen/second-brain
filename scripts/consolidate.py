@@ -17,15 +17,10 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 sys.path.append(str(Path(__file__).parent))
 
 from utils.memory_io import (
-    load_config, get_api_key, get_memory_files, read_memory_file,
+    load_config, get_memory_files, read_memory_file,
     write_memory_file, load_memory_index, parse_memory_sections
 )
-
-try:
-    from anthropic import Anthropic
-except ImportError:
-    print("Error: anthropic package not installed. Run: pip install anthropic", file=sys.stderr)
-    sys.exit(1)
+from utils.llm_client import create_llm_client
 
 
 CONSOLIDATION_PROMPT = """You are a memory consolidation assistant. Your job is to merge new memories into existing long-term memory while avoiding duplication.
@@ -347,29 +342,14 @@ def consolidate_memories(
     
     # Get AI consolidation suggestions
     try:
-        api_key = get_api_key()
-        client = Anthropic(api_key=api_key)
+        client = create_llm_client(config)
         
         prompt = CONSOLIDATION_PROMPT.format(
             existing_memory=existing_content,
             new_memories=new_memories_text
         )
         
-        response = client.messages.create(
-            model=config.get('api', {}).get('model', 'claude-sonnet-4-20250514'),
-            max_tokens=4000,
-            temperature=0.1,
-            messages=[{
-                "role": "user", 
-                "content": prompt
-            }]
-        )
-        
-        # Extract response
-        if hasattr(response.content[0], 'text'):
-            ai_output = response.content[0].text
-        else:
-            ai_output = str(response.content[0])
+        ai_output = client.generate(prompt, max_tokens=4000, temperature=0.1)
         
     except Exception as e:
         return {

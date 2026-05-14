@@ -19,15 +19,10 @@ from typing import List, Dict, Any, Optional, Tuple
 sys.path.append(str(Path(__file__).parent))
 
 from utils.memory_io import (
-    load_config, get_api_key, extract_text_content, 
+    load_config, extract_text_content,
     find_session_files, ensure_memory_dir
 )
-
-try:
-    from anthropic import Anthropic
-except ImportError:
-    print("Error: anthropic package not installed. Run: pip install anthropic", file=sys.stderr)
-    sys.exit(1)
+from utils.llm_client import create_llm_client
 
 
 # Enhanced extraction prompt with entity extraction
@@ -309,7 +304,7 @@ def chunk_messages(
     return chunks
 
 
-def extract_memories_from_chunk(chunk: str, client: Anthropic, config: Dict[str, Any]) -> Dict[str, Any]:
+def extract_memories_from_chunk(chunk: str, client: Any, config: Dict[str, Any]) -> Dict[str, Any]:
     """Extract structured memories from a text chunk."""
     api_config = config.get('api', {})
     model = api_config.get('model', 'claude-sonnet-4-20250514')
@@ -318,21 +313,11 @@ def extract_memories_from_chunk(chunk: str, client: Anthropic, config: Dict[str,
     
     for attempt in range(max_retries):
         try:
-            response = client.messages.create(
-                model=model,
+            response_text = client.generate(
+                EXTRACTION_PROMPT + chunk,
                 max_tokens=4000,
-                temperature=temperature,
-                messages=[{
-                    "role": "user",
-                    "content": EXTRACTION_PROMPT + chunk
-                }]
+                temperature=temperature
             )
-            
-            # Extract response content
-            if hasattr(response.content[0], 'text'):
-                response_text = response.content[0].text
-            else:
-                response_text = str(response.content[0])
             
             # Parse extracted sections
             sections = parse_extracted_sections(response_text)
@@ -555,9 +540,8 @@ Examples:
             print("Dry run - would process these files but not make API calls")
             sys.exit(0)
         
-        # Initialize API client
-        api_key = get_api_key()
-        client = Anthropic(api_key=api_key)
+        # Initialize configured LLM client
+        client = create_llm_client(config)
         
         # Process all session files
         all_extractions = []

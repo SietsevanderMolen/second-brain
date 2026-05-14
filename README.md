@@ -6,7 +6,7 @@
 
 AI agent memory management is the #1 pain point in 2026. Your OpenClaw agent wakes up fresh each session, relying on manually-written memory files that quickly become stale. Second Brain v2 automates the entire memory lifecycle:
 
-- ✅ **Extract** memories from session logs using Claude
+- ✅ **Extract** memories from session logs using the configured LLM provider
 - ✅ **Search** memories with natural language queries  
 - ✅ **Consolidate** daily memories into long-term storage automatically
 - ✅ **Score** memories by relevance with smart decay algorithms
@@ -20,13 +20,22 @@ AI agent memory management is the #1 pain point in 2026. Your OpenClaw agent wak
 ### 1. Install Dependencies
 
 ```bash
-pip install anthropic pyyaml
+pip install pyyaml anthropic  # anthropic only needed if provider=anthropic
 ```
 
 ### 2. Configure API Key
 
 ```bash
+# Option A: Anthropic
 export ANTHROPIC_API_KEY="your_key_here"
+
+# Option B: LM Studio (OpenAI-compatible local model)
+# In config.yaml set: api.provider: openai_compatible
+# and api.model to your local model id (for example qwen/qwen3-14b)
+
+# Option C: OpenClaw endpoint
+# In config.yaml set: api.provider: openclaw
+# and api.openclaw.chat_url (+ optional api.openclaw.agent)
 ```
 
 Or configure in OpenClaw auth profiles.
