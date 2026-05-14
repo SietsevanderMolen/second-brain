@@ -3,31 +3,27 @@
 Session Knowledge Extractor for Second Brain System
 
 Reads JSONL session files from OpenClaw agents and extracts structured
-knowledge using Claude API.
+knowledge using the configured LLM provider.
 """
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-try:
-    from anthropic import Anthropic
-except ImportError:
-    print("Error: anthropic package not installed. Run: pip install anthropic", file=sys.stderr)
-    sys.exit(1)
+from utils.memory_io import load_config
+from utils.llm_client import create_llm_client
+
 
 
 # Constants
-MODEL = "claude-sonnet-4-20250514"
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
 CHARS_PER_TOKEN = 4
 MAX_TOKENS_PER_CHUNK = 100_000
 TARGET_CHARS_PER_CHUNK = 300_000  # Conservative estimate
 DEFAULT_SESSIONS_DIR = Path.home() / ".openclaw/agents/main/sessions"
-AUTH_PROFILES_PATH = Path.home() / ".openclaw/agents/main/agent/auth-profiles.json"
 
 
 EXTRACTION_PROMPT = """Analyze this conversation transcript and extract structured knowledge.
@@ -91,28 +87,13 @@ TRANSCRIPT:
 """
 
 
-def get_api_key() -> str:
-    """Get Anthropic API key from environment or auth profiles."""
-    # Try environment variable first
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if api_key:
-        return api_key
-
-    # Try auth profiles
+def get_default_llm_client() -> Any:
+    """Create client from config.yaml, with sane defaults for legacy usage."""
     try:
-        if AUTH_PROFILES_PATH.exists():
-            with open(AUTH_PROFILES_PATH, 'r') as f:
-                data = json.load(f)
-                profiles = data.get("profiles", data)
-                if "anthropic:default" in profiles:
-                    token = profiles["anthropic:default"].get("token")
-                    if token:
-                        return token
-    except Exception as e:
-        print(f"Warning: Could not read auth profiles: {e}", file=sys.stderr)
-
-    print("Error: No API key found. Set ANTHROPIC_API_KEY or configure auth profile.", file=sys.stderr)
-    sys.exit(1)
+        config = load_config()
+    except Exception:
+        config = {"api": {"provider": "anthropic", "model": DEFAULT_MODEL}}
+    return create_llm_client(config)
 
 
 def extract_text_content(content: Any) -> str:
@@ -232,28 +213,12 @@ def chunk_transcript(transcript: str) -> List[str]:
     return chunks
 
 
-def extract_with_claude(client: Anthropic, transcript_chunk: str) -> str:
-    """Send transcript chunk to Claude for extraction."""
+def extract_with_llm(client: Any, transcript_chunk: str) -> str:
+    """Send transcript chunk to configured LLM provider for extraction."""
     try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=4096,
-            messages=[{
-                "role": "user",
-                "content": EXTRACTION_PROMPT + transcript_chunk
-            }]
-        )
-
-        # Extract text from response
-        response_text = ""
-        for block in message.content:
-            if hasattr(block, 'text'):
-                response_text += block.text
-
-        return response_text.strip()
-
+        return client.generate(EXTRACTION_PROMPT + transcript_chunk, max_tokens=4096, temperature=0.1)
     except Exception as e:
-        print(f"Error calling Claude API: {e}", file=sys.stderr)
+        print(f"Error calling LLM provider: {e}", file=sys.stderr)
         raise
 
 
@@ -322,7 +287,7 @@ def parse_session(session_path) -> Dict[str, Any]:
     return parse_session_file(Path(session_path))
 
 
-def extract_memories(session_data: Dict[str, Any], client: Anthropic = None) -> Dict[str, list]:
+def extract_memories(session_data: Dict[str, Any], client: Any = None) -> Dict[str, list]:
     """Extract structured memories from parsed session data.
 
     Returns a dict with keys: facts_preferences, decisions, action_items,
@@ -330,8 +295,7 @@ def extract_memories(session_data: Dict[str, Any], client: Anthropic = None) -> 
     Used by digest.py for merging across sessions.
     """
     if client is None:
-        api_key = get_api_key()
-        client = Anthropic(api_key=api_key)
+        client = get_default_llm_client()
 
     messages = session_data.get("messages", [])
     if not messages:
@@ -345,7 +309,7 @@ def extract_memories(session_data: Dict[str, Any], client: Anthropic = None) -> 
 
     extractions = []
     for chunk in chunks:
-        extraction = extract_with_claude(client, chunk)
+        extraction = extract_with_llm(client, chunk)
         extractions.append(extraction)
 
     merged = merge_extractions(extractions)
@@ -376,7 +340,7 @@ def extract_memories(session_data: Dict[str, Any], client: Anthropic = None) -> 
     return result
 
 
-def process_session(client: Anthropic, session_path: Path) -> str:
+def process_session(client: Any, session_path: Path) -> str:
     """Process a single session file and return extracted markdown."""
     print(f"Processing: {session_path}", file=sys.stderr)
 
@@ -405,7 +369,7 @@ def process_session(client: Anthropic, session_path: Path) -> str:
     extractions = []
     for i, chunk in enumerate(chunks, 1):
         print(f"  Processing chunk {i}/{len(chunks)}...", file=sys.stderr)
-        extraction = extract_with_claude(client, chunk)
+        extraction = extract_with_llm(client, chunk)
         extractions.append(extraction)
 
     # Merge extractions
@@ -440,7 +404,7 @@ def format_output(session_id: str, session_timestamp: Optional[str], extraction:
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Extract structured knowledge from OpenClaw session files using Claude API",
+        description="Extract structured knowledge from OpenClaw session files ",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -466,9 +430,8 @@ Examples:
 
     args = parser.parse_args()
 
-    # Initialize Claude client
-    api_key = get_api_key()
-    client = Anthropic(api_key=api_key)
+    # Initialize configured LLM client
+    client = get_default_llm_client()
 
     # Process each session file
     all_outputs = []

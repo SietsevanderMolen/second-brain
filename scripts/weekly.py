@@ -11,11 +11,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Tuple
 
-import anthropic
-
-# Import shared API key helper
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract import get_api_key
+from utils.memory_io import load_config
+from utils.llm_client import create_llm_client
 
 
 def get_week_number(date: datetime) -> str:
@@ -119,34 +117,13 @@ Here are the daily entries:
 """
 
 
-def analyze_week(content: str, start_date: datetime, end_date: datetime, api_key: str) -> str:
-    """
-    Send memory files to Claude API for analysis.
-
-    Args:
-        content: Concatenated memory file contents
-        start_date: First day of the week
-        end_date: Last day of the week
-        api_key: Anthropic API key
-
-    Returns:
-        Claude's analysis as a string
-    """
-    client = anthropic.Anthropic(api_key=api_key)
-
+def analyze_week(content: str, start_date: datetime, end_date: datetime, llm_client) -> str:
+    """Send memory files to the configured LLM provider for weekly analysis."""
     prompt = create_analysis_prompt(content, start_date, end_date)
 
-    print("Sending to Claude API for analysis...", file=sys.stderr)
+    print("Sending to configured LLM provider for analysis...", file=sys.stderr)
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4096,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    return message.content[0].text
+    return llm_client.generate(prompt, max_tokens=4096, temperature=0.1)
 
 
 def format_output(
@@ -233,16 +210,17 @@ def main():
         print("Error: No content found in memory files", file=sys.stderr)
         sys.exit(1)
 
-    # Get API key
+    # Initialize configured LLM client
     try:
-        api_key = get_api_key()
-    except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        config = load_config()
+        llm_client = create_llm_client(config)
+    except Exception as e:
+        print(f"Error initializing LLM client: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Analyze
     try:
-        analysis = analyze_week(content, start_date, end_date, api_key)
+        analysis = analyze_week(content, start_date, end_date, llm_client)
     except Exception as e:
         print(f"Error during API call: {e}", file=sys.stderr)
         sys.exit(1)

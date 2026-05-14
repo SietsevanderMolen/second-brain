@@ -6,7 +6,7 @@
 
 Second Brain v2 is an OpenClaw skill that solves the #1 AI agent problem in 2026: memory loss between sessions. Your agent wakes up fresh every time, relying on manually-written memory files that quickly become stale. This skill automates the entire memory lifecycle:
 
-- **Extract** memories from session logs using Claude
+- **Extract** memories from session logs using the configured LLM provider
 - **Search** memories with natural language queries  
 - **Consolidate** daily memories into long-term storage automatically
 - **Score** memories by relevance with smart decay algorithms
@@ -46,17 +46,26 @@ git clone <repo> ~/workspace/skills/second-brain
 ## Dependencies
 
 - Python 3.12+
-- anthropic SDK (`pip install anthropic`)
-- PyYAML (`pip install pyyaml`) 
+- PyYAML (`pip install pyyaml`)
+- anthropic SDK (`pip install anthropic`) only when using `api.provider: anthropic` 
 - qmd (optional, for enhanced search)
 
 ## Quick Start
 
 ### 1. Configure Your API Key
 
-Set your Anthropic API key:
+Set your provider configuration (examples below):
 ```bash
+# Option A: Anthropic
 export ANTHROPIC_API_KEY="your_key_here"
+
+# Option B: LM Studio (OpenAI-compatible local model)
+# In config.yaml set: api.provider: openai_compatible
+# and api.model to your local model id (for example qwen/qwen3-14b)
+
+# Option C: OpenClaw endpoint
+# In config.yaml set: api.provider: openclaw
+# and api.openclaw.chat_url (+ optional api.openclaw.agent)
 ```
 
 Or configure it in OpenClaw auth profiles at `~/.openclaw/agents/main/agent/auth-profiles.json`.

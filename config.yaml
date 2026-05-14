@@ -63,12 +63,19 @@ pipeline:
   consolidate_threshold: 5 # Min new memories before consolidation
   max_runtime_minutes: 30  # Pipeline timeout
 
-# Claude API settings
+# LLM API settings
 api:
+  provider: anthropic         # anthropic | openai_compatible | openclaw
   model: claude-sonnet-4-20250514
+  base_url: http://127.0.0.1:1234  # Used by openai_compatible provider (LM Studio default)
+  key_env: ANTHROPIC_API_KEY  # Optional override env var name
   max_retries: 3
   timeout_seconds: 120
   temperature: 0.1         # Low temperature for consistent extraction
+  openclaw:
+    chat_url: http://127.0.0.1:3000/api/chat  # Example; set to your OpenClaw chat endpoint
+    agent: main                                 # Optional: route request to a specific OpenClaw agent
+    key_env: OPENCLAW_API_KEY                   # Optional auth for OpenClaw endpoint
 
 # Output formatting
 output:

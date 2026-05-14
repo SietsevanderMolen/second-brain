@@ -20,7 +20,7 @@ import json
 
 # Import from extract.py in the same directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract import parse_session, extract_memories, get_api_key
+from extract import parse_session, extract_memories
 
 
 SESSIONS_DIR = Path.home() / ".openclaw" / "agents" / "main" / "sessions"
@@ -278,11 +278,6 @@ Examples:
 
     print(f"Found {len(session_files)} session(s)")
 
-    # Initialize Claude client once
-    from anthropic import Anthropic
-    api_key = get_api_key()
-    client = Anthropic(api_key=api_key)
-
     # Process each session
     all_memories = []
     processed_count = 0
@@ -295,7 +290,7 @@ Examples:
             session_data = parse_session(str(session_file))
 
             # Extract memories
-            memories = extract_memories(session_data, client=client)
+            memories = extract_memories(session_data)
 
             if memories and any(memories.values()):
                 all_memories.append(memories)
